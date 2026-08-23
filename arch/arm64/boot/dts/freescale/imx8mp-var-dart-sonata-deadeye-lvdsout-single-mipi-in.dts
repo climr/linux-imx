@@ -14,8 +14,8 @@
  * the PRBS sweep).
  *
  * Panel/LVDS output is kept live during this bring-up (same proven
- * single-channel 1280x720 config as imx8mp-var-dart-sonata-deadeye.dts)
- * so captured video can be viewed while tuning the CSI receive side.
+ * single-channel 1280x720 config used elsewhere) so captured video can
+ * be viewed while tuning the CSI receive side.
  */
 
 #include "imx8mp-var-dart-sonata-basler-isp0.dts"
