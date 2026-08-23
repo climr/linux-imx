@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 Variscite Ltd.
+ */
+
+/*
+ * Deadeye board variant for MIPI-CSI bring-up: TW8846 video processor
+ * feeding mipi_csi_0 (physical CSI1). TW8846 configuration (including
+ * PRBS-9 D-PHY test mode) is owned entirely by a separate microcontroller
+ * over its own I2C bus - the SOM does no TW8846 control, so no I2C node
+ * for it appears anywhere in this tree. See
+ * imx8mp-var-dart-mipi-csi-tw8846.dtsi for the receiver-side config and
+ * its still-open TODOs (csis-hs-settle/csis-clk-settle to be tuned via
+ * the PRBS sweep).
+ *
+ * Panel/LVDS output is kept live during this bring-up (same proven
+ * single-channel 1280x720 config as imx8mp-var-dart-sonata-deadeye.dts)
+ * so captured video can be viewed while tuning the CSI receive side.
+ */
+
+#include "imx8mp-var-dart-sonata-basler-isp0.dts"
+#include "imx8mp-var-dart-panel-tw8846-1280x720.dtsi"
+#include "imx8mp-var-dart-mipi-csi-tw8846.dtsi"
+
+/ {
+	model = "Variscite DART-MX8M-PLUS on Deadeye Board - MIPI-CSI TW8846 bring-up";
+};

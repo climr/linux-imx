@@ -374,6 +374,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mp-var-dart-sonata.dtb \
                           imx8mp-var-dart-sonata-basler-isp0.dtb \
                           imx8mp-var-dart-sonata-deadeye.dtb \
                           imx8mp-var-dart-sonata-deadeye-1920x1080.dtb \
+                          imx8mp-var-dart-sonata-deadeye-mipi-csi-tw8846.dtb \
                           imx8mp-var-dart-sonata-m7.dtb
 
 imx8mp-var-dart-1.x-sonata-dtbs := imx8mp-var-dart-sonata.dtb imx8mp-var-dart-1.x.dtbo

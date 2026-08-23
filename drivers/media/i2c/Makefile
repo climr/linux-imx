@@ -141,6 +141,7 @@ obj-$(CONFIG_VIDEO_TVAUDIO) += tvaudio.o
 obj-$(CONFIG_VIDEO_TVP514X) += tvp514x.o
 obj-$(CONFIG_VIDEO_TVP5150) += tvp5150.o
 obj-$(CONFIG_VIDEO_TVP7002) += tvp7002.o
+obj-$(CONFIG_VIDEO_FIXED_CSI_SOURCE) += fixed-csi-source.o
 obj-$(CONFIG_VIDEO_TW2804) += tw2804.o
 obj-$(CONFIG_VIDEO_TW9903) += tw9903.o
 obj-$(CONFIG_VIDEO_TW9906) += tw9906.o

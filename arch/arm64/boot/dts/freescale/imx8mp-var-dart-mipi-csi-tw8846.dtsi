@@ -1,0 +1,104 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 Variscite Ltd.
+ */
+
+/*
+ * TW8846 video processor feeding MIPI-CSI into mipi_csi_0 (physical
+ * "CSI1", per the csi0 = &mipi_csi_0 alias in imx8mp.dtsi), 4 lanes,
+ * YUV422, 1920x1080@60. TW8846 itself is fully configured and streamed
+ * by an external microcontroller over its own I2C bus - Linux never
+ * talks to it. Only the receiver side (mipi_csi_0 -> isi_0) is wired
+ * up here, per the ISI (not ISP) path since YUV422 is already a
+ * formed pixel format, not raw Bayer needing demosaic.
+ *
+ * Pixel format itself is not a devicetree property on this driver -
+ * imx8-mipi-csi2-sam.c negotiates it purely at runtime via V4L2 subdev
+ * s_fmt (mipi_csis_formats[] in the driver, YUYV8_2X8 is index 0 / the
+ * fallback default). Nothing below needs to change between RGB888 and
+ * YUV422 except this comment and, eventually, csis-hs-settle/
+ * csis-clk-settle once the actual YUV422 lane bit rate is measured -
+ * PRBS sweep to determine that is deferred for now.
+ *
+ * "tw8846" below is NOT a TW8846 driver - it's fixed-csi-source
+ * (drivers/media/i2c/fixed-csi-source.c), a stub v4l2_subdev that
+ * performs no register access at all. It exists only because
+ * register_sensor_entities() in
+ * drivers/staging/media/imx/imx8-media-dev.c requires
+ * of_find_i2c_device_by_node() to find a real, bound i2c_client for
+ * mipi_csi_0's remote endpoint before it will link the media graph -
+ * otherwise the whole mxc-md platform driver returns -EPROBE_DEFER
+ * forever and no /dev/videoX ever appears, regardless of whether
+ * csis_get_remote_subdev() in imx8-mipi-csi2-sam.c would separately
+ * also fail. The i2c reg address below is a bookkeeping placeholder
+ * only - no transactions are ever issued to it.
+ *
+ * TODO before this is usable:
+ * - csis-hs-settle/csis-clk-settle below are placeholders, not
+ *   computed from the TW8846's actual MIPI D-PHY lane bit rate -
+ *   imx8-mipi-csi2-sam.c reads these as raw register values with no
+ *   auto-calculation, unlike some other NXP CSI receiver drivers.
+ *
+ * mipi_csi_0's clock-frequency/assigned-clocks are restored to the
+ * imx8mp.dtsi default (500MHz) rather than the Basler ISP0 dtsi's
+ * 266MHz override (still earlier in this file's include chain, and
+ * would otherwise silently persist since nothing after it touched
+ * it) - 266MHz was presumably tuned for Basler's own pixel rate, not
+ * verified here for 1080p60 YUV422. TODO: confirm 500MHz is actually
+ * correct/sufficient for this format+resolution too.
+ */
+
+&i2c2 {
+	/delete-node/ov5640_mipi@3c;
+	/delete-node/basler_camera@36;
+
+	/*
+	 * Bookkeeping-only node - see the fixed-csi-source explanation
+	 * above. No i2c transactions are ever issued to 0x36; reusing the
+	 * address just-freed from basler_camera@36 above.
+	 */
+	fixed_csi_source: fixed-csi-source@36 {
+		compatible = "fixed-mipi-csi-source";
+		reg = <0x36>;
+
+		port {
+			tw8846_ep: endpoint {
+				remote-endpoint = <&mipi_csi0_ep>;
+				data-lanes = <1 2 3 4>;
+				link-frequencies = /bits/ 64 <297000000>;	/* 594 Mbps/lane YUV422 1080p60, DDR/2 */
+			};
+		};
+	};
+};
+
+&mipi_csi_0 {
+	status = "okay";
+	clock-frequency = <500000000>;
+	assigned-clock-parents = <&clk IMX8MP_SYS_PLL2_1000M>;
+	assigned-clock-rates = <500000000>;
+
+	port {
+		mipi_csi0_ep: endpoint {
+			remote-endpoint = <&tw8846_ep>;
+			data-lanes = <4>;
+			csis-hs-settle = <16>;	/* TODO: verify against actual lane bit rate */
+			csis-clk-settle = <2>;	/* TODO: verify against actual lane bit rate */
+		};
+	};
+};
+
+&cameradev {
+	status = "okay";
+};
+
+&isi_0 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&isp_0 {
+	status = "disabled";
+};

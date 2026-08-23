@@ -1279,6 +1279,22 @@ config VIDEO_TW2804
 	  To compile this driver as a module, choose M here: the
 	  module will be called tw2804.
 
+config VIDEO_FIXED_CSI_SOURCE
+	tristate "Fixed-format MIPI CSI-2 source stub"
+	depends on VIDEO_DEV && I2C
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	help
+	  Stub v4l2_subdev driver for a MIPI CSI-2 video source that is
+	  fully configured and streamed by hardware external to Linux
+	  (e.g. a microcontroller on the carrier board). It performs no
+	  register access of its own and only registers a fixed-format
+	  source entity so the source can be linked into the capture
+	  media graph.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called fixed-csi-source.
+
 config VIDEO_TW9903
 	tristate "Techwell TW9903 video decoder"
 	depends on VIDEO_DEV && I2C
