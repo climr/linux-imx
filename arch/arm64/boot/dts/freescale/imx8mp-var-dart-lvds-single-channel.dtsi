@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 Variscite Ltd.
+ */
+
+/*
+ * Enable single-channel LVDS mode on the i.MX8MP LDB.
+ *
+ * Per Documentation/devicetree/bindings/display/imx/ldb.txt, i.MX8MP
+ * only supports one LVDS encoder channel - "fsl,dual-channel" means
+ * only lvds-channel@0 should stay configured, and the LDB distributes
+ * that single input across both physical LVDS channel outputs in
+ * hardware. Mirrors NXP's own reference implementation in
+ * imx8mp-evk-jdi-wuxga-lvds-panel.dts.
+ */
+
+&ldb {
+    lvds-channel@0 { status = "okay"; };
+    lvds-channel@1 { status = "disabled"; }; 
+};

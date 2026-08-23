@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 Variscite Ltd.
+ */
+
+/*
+ * Deadeye board variant driving the DMKDT0500FHCA panel at its
+ * native 1920x1080@60 resolution over dual-channel LVDS. See
+ * imx8mp-var-dart-sonata-deadeye.dts for the proven single-channel
+ * 1280x720 fallback configuration on the same hardware.
+ */
+
+#include "imx8mp-var-dart-sonata-basler-isp0.dts"
+#include "imx8mp-var-dart-lvds-dual-channel.dtsi"
+#include "imx8mp-var-dart-panel-tw8846-1920x1080.dtsi"
+
+/ {
+	model = "Variscite DART-MX8M-PLUS on Deadeye Board - dual-channel LVDS 1080p60";
+};

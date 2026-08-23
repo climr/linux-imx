@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 Variscite Ltd.
+ */
+
+/*
+ * TW8846 1280x720 single-channel LVDS panel.
+ *
+ * Replaces the panel node inherited from the DT8MCustomBoard dtsi
+ * (same "/panel" path, so every property below overrides the
+ * defaults instead of merging alongside them). Confirm width-mm,
+ * height-mm, data-mapping and panel-timing against the panel's
+ * datasheet before use.
+ */
+
+/ {
+    panel {
+        compatible = "panel-lvds";          /* sgd,gktw70sdae4se REMOVED */
+        backlight = <&backlight>;
+        width-mm  = <111>;                  /* DMKDT0500FHCA active area 110.592 mm */
+        height-mm = <62>;                   /* 62.208 mm */
+        label = "dmkdt0500fhca";
+        data-mapping = "jeida-24";
+        status = "okay";
+
+        panel-timing {
+       		clock-frequency = <74250000>;  /* results in 57.25fps, 60fps not achievable with this config */
+			hactive      = <1280>;
+			vactive      = <720>;
+			hfront-porch = <110>;
+			hsync-len    = <40>;
+			hback-porch  = <220>;
+			vfront-porch = <5>;
+			vsync-len    = <5>;
+			vback-porch  = <56>;
+            hsync-active    = <1>;
+            vsync-active    = <1>;
+            de-active       = <1>;
+            pixelclk-active = <0>;
+        };
+
+        port {
+            panel_in: endpoint {
+                remote-endpoint = <&lvds_out>;
+            };
+        };
+    };
+};

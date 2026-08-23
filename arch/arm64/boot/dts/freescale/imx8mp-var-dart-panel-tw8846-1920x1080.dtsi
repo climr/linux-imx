@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 Variscite Ltd.
+ */
+
+/*
+ * DMKDT0500FHCA 1920x1080 dual-channel LVDS panel (native FHD mode -
+ * same physical panel as imx8mp-var-dart-panel-tw8846-1280x720.dtsi,
+ * driven at full resolution instead of the reduced fallback mode).
+ *
+ * Replaces the panel node inherited from the DT8MCustomBoard dtsi
+ * (same "/panel" path, so every property below overrides the
+ * defaults instead of merging alongside them). Confirm data-mapping
+ * and panel-timing against the panel's datasheet before use - the
+ * timing values here are standard CEA-861 1080p60 numbers as a
+ * starting point.
+ */
+
+/ {
+	panel {
+		compatible = "panel-lvds";
+		backlight = <&backlight>;
+		width-mm  = <111>;
+		height-mm = <62>;
+		label = "dmkdt0500fhca";
+		data-mapping = "jeida-24";
+		status = "okay";
+
+		panel-timing {
+			clock-frequency = <148500000>;
+			hactive      = <1920>;
+			vactive      = <1080>;
+			hfront-porch = <88>;
+			hsync-len    = <44>;
+			hback-porch  = <148>;
+			vfront-porch = <4>;
+			vsync-len    = <5>;
+			vback-porch  = <36>;
+			hsync-active    = <1>;
+			vsync-active    = <1>;
+			de-active       = <1>;
+			pixelclk-active = <0>;
+		};
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&lvds_out>;
+			};
+		};
+	};
+};
