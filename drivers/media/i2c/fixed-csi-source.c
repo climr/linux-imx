@@ -119,6 +119,25 @@ static const struct media_entity_operations fixed_csi_source_entity_ops = {
 	.link_setup = fixed_csi_source_link_setup,
 };
 
+static int fixed_csi_source_s_power(struct v4l2_subdev *sd, int on)
+{
+	/*
+	 * No-op: mxc-mipi-csi2-sam.c's mipi_csis_s_power() and
+	 * imx8-isi-cap.c's mxc_isi_cap_streamon() both forward s_power to
+	 * this subdev and treat any non-zero return (including the
+	 * -ENOIOCTLCMD an absent .core op would produce) as a hard
+	 * failure, aborting streamon before vb2_ioctl_streamon() ever
+	 * runs. This chip's power state is owned entirely by the external
+	 * microcontroller, not Linux, so there is nothing to do here -
+	 * this just needs to exist and return success.
+	 */
+	return 0;
+}
+
+static const struct v4l2_subdev_core_ops fixed_csi_source_core_ops = {
+	.s_power = fixed_csi_source_s_power,
+};
+
 static const struct v4l2_subdev_video_ops fixed_csi_source_video_ops = {
 	.s_stream = fixed_csi_source_s_stream,
 	.g_frame_interval = fixed_csi_source_g_frame_interval,
@@ -132,6 +151,7 @@ static const struct v4l2_subdev_pad_ops fixed_csi_source_pad_ops = {
 };
 
 static const struct v4l2_subdev_ops fixed_csi_source_subdev_ops = {
+	.core = &fixed_csi_source_core_ops,
 	.video = &fixed_csi_source_video_ops,
 	.pad = &fixed_csi_source_pad_ops,
 };
