@@ -680,10 +680,6 @@ static int isi_cap_fmt_init(struct mxc_isi_cap_dev *isi_cap)
 	memset(&src_fmt, 0, sizeof(src_fmt));
 	src_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	ret = v4l2_subdev_call(src_sd, pad, get_fmt, NULL, &src_fmt);
-	dev_info(&isi_cap->pdev->dev,
-		 "DEBUG isi_cap_fmt_init: ret=%d pad=%u code=0x%x %ux%u (src_sd=%s)\n",
-		 ret, src_fmt.pad, src_fmt.format.code,
-		 src_fmt.format.width, src_fmt.format.height, src_sd->name);
 	if (ret < 0 && ret != -ENOIOCTLCMD) {
 		v4l2_err(&isi_cap->sd, "get remote fmt fail!\n");
 		return ret;
@@ -986,10 +982,6 @@ static int mxc_isi_source_fmt_init(struct mxc_isi_cap_dev *isi_cap)
 	src_fmt.pad = source_pad->index;
 	src_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	ret = v4l2_subdev_call(src_sd, pad, get_fmt, NULL, &src_fmt);
-	dev_info(&isi_cap->pdev->dev,
-		 "DEBUG mxc_isi_source_fmt_init: ret=%d pad=%u code=0x%x %ux%u (src_sd=%s)\n",
-		 ret, src_fmt.pad, src_fmt.format.code,
-		 src_fmt.format.width, src_fmt.format.height, src_sd->name);
 	if (ret < 0 && ret != -ENOIOCTLCMD) {
 		v4l2_err(&isi_cap->sd, "get remote fmt fail!\n");
 		return ret;

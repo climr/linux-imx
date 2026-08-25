@@ -97,6 +97,24 @@
 	cap_device {
 		status = "okay";
 	};
+
+	/*
+	 * The base board file (imx8mp-var-dart-dt8mcustomboard.dts) leaves
+	 * this enabled by default. With both cap_device and m2m_device
+	 * registered against the same physical ISI channel, the m2m
+	 * persona (imx8-isi-m2m.c) ends up answering on the video node
+	 * instead of the plain capture path (imx8-isi-cap.c) - confirmed
+	 * via a kernel stack trace showing v4l2_m2m_ioctl_dqbuf, and via
+	 * isi_cap_fmt_init()/mxc_isi_source_fmt_init() never executing
+	 * despite streaming appearing to start. m2m's src_f has no live
+	 * sensor feed to source from (it expects an OUTPUT-queue-fed
+	 * buffer), so it defaults to ISI_4K/ISI_8K (4096x8192) as a
+	 * placeholder, misconfiguring the scale engine and stalling
+	 * VIDIOC_DQBUF forever. Not needed for a live camera capture path.
+	 */
+	m2m_device {
+		status = "disabled";
+	};
 };
 
 &isp_0 {
