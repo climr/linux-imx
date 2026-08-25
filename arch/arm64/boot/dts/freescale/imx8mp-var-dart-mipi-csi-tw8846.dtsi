@@ -5,12 +5,23 @@
 
 /*
  * TW8846 video processor feeding MIPI-CSI into mipi_csi_0 (physical
- * "CSI1", per the csi0 = &mipi_csi_0 alias in imx8mp.dtsi), 4 lanes,
- * YUV422, 1920x1080@60. TW8846 itself is fully configured and streamed
+ * "CSI1", per the csi0 = &mipi_csi_0 alias in imx8mp.dtsi), 2 lanes,
+ * YUV422, 1920x1080@30. TW8846 itself is fully configured and streamed
  * by an external microcontroller over its own I2C bus - Linux never
  * talks to it. Only the receiver side (mipi_csi_0 -> isi_0) is wired
  * up here, per the ISI (not ISP) path since YUV422 is already a
  * formed pixel format, not raw Bayer needing demosaic.
+ *
+ * DIAGNOSTIC: temporarily dropped from 4 lanes/60fps to 2 lanes/30fps
+ * to isolate a lane-count-specific issue. MIPI_CSIS_DPHYSTATUS never
+ * showed Stop State on either clk or data lanes at 4 lanes, despite
+ * an exhaustive csis-hs-settle/csis-clk-settle sweep (all 256x4
+ * combinations) finding no lock, and every other working reference
+ * config in this tree (all OV5640 instances) uses 2 lanes - none
+ * uses 4. Per-lane bit rate is kept at the same already-proven
+ * 594Mbps used at 4 lanes/60fps (halving lane count and frame rate
+ * together keeps the same per-lane clock, changing only the lane
+ * count variable for a clean test).
  *
  * Pixel format itself is not a devicetree property on this driver -
  * imx8-mipi-csi2-sam.c negotiates it purely at runtime via V4L2 subdev
@@ -64,8 +75,8 @@
 		port {
 			tw8846_ep: endpoint {
 				remote-endpoint = <&mipi_csi0_ep>;
-				data-lanes = <1 2 3 4>;
-				link-frequencies = /bits/ 64 <297000000>;	/* 594 Mbps/lane YUV422 1080p60, DDR/2 */
+				data-lanes = <1 2>;
+				link-frequencies = /bits/ 64 <297000000>;	/* 594 Mbps/lane, DDR/2 - same rate as the 4-lane/60fps config */
 			};
 		};
 	};
@@ -80,7 +91,7 @@
 	port {
 		mipi_csi0_ep: endpoint {
 			remote-endpoint = <&tw8846_ep>;
-			data-lanes = <4>;
+			data-lanes = <2>;
 			csis-hs-settle = <16>;	/* TODO: verify against actual lane bit rate */
 			csis-clk-settle = <2>;	/* TODO: verify against actual lane bit rate */
 		};
