@@ -131,8 +131,23 @@
 		mipi_csi0_ep: endpoint {
 			remote-endpoint = <&tw8846_ep>;
 			data-lanes = <4>;
-			csis-hs-settle = <16>;	/* same value the proven 4-lane Basler config uses */
-			csis-clk-settle = <2>;	/* TODO: verify against actual lane bit rate */
+			/*
+			 * Ths_settle for a 594 Mbps lane rate, per the
+			 * formula the mainline driver for this same Samsung
+			 * CSIS IP uses (drivers/media/platform/nxp/
+			 * imx-mipi-csis.c): (lane_rate - 5e6) / 45e6.
+			 * That formula reproduces both known-good configs in
+			 * this tree exactly - OV5640 at ~297Mbps uses 6, and
+			 * Basler at 750Mbps uses 16 - so it is trustworthy
+			 * here. 16 was previously copied from Basler on the
+			 * mistaken assumption the value transfers between
+			 * configs; it does not, it scales with bit rate.
+			 * Too large a value makes the receiver sample past
+			 * SOT and never begin packet decode, which presents
+			 * as zero Frame Start events AND zero error events.
+			 */
+			csis-hs-settle = <13>;
+			csis-clk-settle = <0>;	/* mainline hardcodes 0; the Basler config omits it, same effect */
 		};
 	};
 };
