@@ -29,7 +29,7 @@
 #define FIXED_CSI_SOURCE_WIDTH		1920
 #define FIXED_CSI_SOURCE_HEIGHT		1080
 #define FIXED_CSI_SOURCE_CODE		MEDIA_BUS_FMT_UYVY8_1X16
-#define FIXED_CSI_SOURCE_FPS		30
+#define FIXED_CSI_SOURCE_FPS		60
 
 struct fixed_csi_source {
 	struct v4l2_subdev sd;
