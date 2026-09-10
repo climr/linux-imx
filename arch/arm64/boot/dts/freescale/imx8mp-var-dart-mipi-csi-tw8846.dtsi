@@ -80,9 +80,9 @@
 		port {
 			tw8846_ep: endpoint {
 				remote-endpoint = <&mipi_csi0_ep>;
-				data-lanes = <1 2 3 4>;
+				data-lanes = <1>;
 				clock-lanes = <0>;
-				link-frequencies = /bits/ 64 <297000000>;	/* 594 Mbps/lane YUV422 1080p60, DDR/2 */
+				link-frequencies = /bits/ 64 <108000000>;	/* 216 Mbps/lane, DDR/2 */
 			};
 		};
 	};
@@ -130,7 +130,7 @@
 	port {
 		mipi_csi0_ep: endpoint {
 			remote-endpoint = <&tw8846_ep>;
-			data-lanes = <4>;
+			data-lanes = <1>;
 			/*
 			 * Ths_settle for a 594 Mbps lane rate, per the
 			 * formula the mainline driver for this same Samsung
@@ -146,7 +146,7 @@
 			 * SOT and never begin packet decode, which presents
 			 * as zero Frame Start events AND zero error events.
 			 */
-			csis-hs-settle = <13>;
+			csis-hs-settle = <4>;
 			csis-clk-settle = <0>;	/* mainline hardcodes 0; the Basler config omits it, same effect */
 		};
 	};

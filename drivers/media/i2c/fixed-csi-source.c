@@ -26,10 +26,24 @@
 #include <media/v4l2-common.h>
 #include <media/v4l2-subdev.h>
 
-#define FIXED_CSI_SOURCE_WIDTH		1920
-#define FIXED_CSI_SOURCE_HEIGHT		1080
+/*
+ * SD PAL CVBS decoded by the TW8846 and sent unscaled, in field mode
+ * (TW8846 datasheet 3.12.5): each 720x288 field is transmitted as its
+ * own picture with its own FS/FE short packets, 50 of them per second.
+ *
+ * Field mode is reported here as plain progressive 720x288 rather than
+ * V4L2_FIELD_ALTERNATE on purpose. imx8-isi-cap.c has no interlace
+ * support - it hardcodes V4L2_FIELD_NONE into both the format and the
+ * buffer (three sites) and overwrites whatever a subdev reports - and
+ * imx8-mipi-csi2-sam.c defines MIPI_CSIS_CMN_CTRL_INTER_MODE but never
+ * writes it. Since each field already arrives as a self-contained
+ * picture, treating fields as independent frames is what the hardware
+ * does anyway; pair them in userspace if deinterlacing is wanted.
+ */
+#define FIXED_CSI_SOURCE_WIDTH		720
+#define FIXED_CSI_SOURCE_HEIGHT		288
 #define FIXED_CSI_SOURCE_CODE		MEDIA_BUS_FMT_UYVY8_1X16
-#define FIXED_CSI_SOURCE_FPS		60
+#define FIXED_CSI_SOURCE_FPS		50
 
 struct fixed_csi_source {
 	struct v4l2_subdev sd;
