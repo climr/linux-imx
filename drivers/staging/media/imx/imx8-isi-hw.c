@@ -656,30 +656,26 @@ void mxc_isi_channel_config_loc(struct mxc_isi_dev *mxc_isi,
 				struct mxc_isi_frame *src_f,
 				struct mxc_isi_frame *dst_f)
 {
-	struct mxc_isi_frame woven;
-	u32 val;
+	struct mxc_isi_frame scale_src;
+	u32 val, cfg_height;
 
-	/*
-	 * With the weave engine on, two half-height fields become one
-	 * full-height frame. Present the doubled geometry to everything
-	 * below so CHNL_IMG_CFG describes the woven frame and
-	 * mxc_isi_channel_set_scaling() sees source and destination
-	 * matching - left alone it computes a 2x vertical upscale that
-	 * fights the weave.
-	 */
 	mxc_isi->deinterlace = deint;
-	if (deint && deint_src_x2) {
-		woven = *src_f;
-		woven.o_height *= 2;
-		woven.height *= 2;
-		src_f = &woven;
-	}
 
 	/* images having higher than 2048 horizontal resolution */
 	chain_buf(mxc_isi, src_f);
 
+	/*
+	 * CHNL_IMG_CFG height while weaving: deint_src_x2 selects whether
+	 * it carries the height of the woven output frame or that of a
+	 * single incoming field. Which the hardware wants is undocumented
+	 * in this driver and the path had never been exercised, so it
+	 * stays selectable until confirmed on hardware.
+	 */
+	cfg_height = (deint && deint_src_x2) ? src_f->o_height * 2
+					     : src_f->o_height;
+
 	/* config output frame size and format */
-	val = src_f->o_width | (src_f->o_height << CHNL_IMG_CFG_HEIGHT_OFFSET);
+	val = src_f->o_width | (cfg_height << CHNL_IMG_CFG_HEIGHT_OFFSET);
 	writel(val, mxc_isi->regs + CHNL_IMG_CFG);
 
 	/* scale size need to equal input size when scaling disabled*/
@@ -688,7 +684,19 @@ void mxc_isi_channel_config_loc(struct mxc_isi_dev *mxc_isi,
 	/* check csc and scaling  */
 	mxc_isi_channel_set_csc(mxc_isi, src_f, dst_f);
 
-	mxc_isi_channel_set_scaling(mxc_isi, src_f, dst_f);
+	/*
+	 * The weave itself supplies the vertical doubling, so the scaler
+	 * has to stay 1:1 however CHNL_IMG_CFG above is programmed. Show
+	 * set_scaling() a source matching the destination; left alone it
+	 * sees a half-height source and computes a 2x vertical upscale
+	 * that fights the weave.
+	 */
+	scale_src = *src_f;
+	if (deint) {
+		scale_src.width = dst_f->width;
+		scale_src.height = dst_f->height;
+	}
+	mxc_isi_channel_set_scaling(mxc_isi, &scale_src, dst_f);
 
 	/* set cropping */
 	mxc_isi_channel_set_crop(mxc_isi, dst_f);
