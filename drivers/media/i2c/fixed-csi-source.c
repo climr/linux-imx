@@ -27,40 +27,42 @@
 #include <media/v4l2-subdev.h>
 
 /*
- * SD PAL CVBS decoded by the TW8846 and sent unscaled, in field mode:
- * each 720x288 field is transmitted as its own picture with its own
- * FS/FE short packets, 50 of them per second.
+ * SD PAL CVBS decoded and de-interlaced by the TW8846, sent unscaled as
+ * progressive 720x576 at 25Hz - one picture per frame, one FS/FE pair.
  *
- * Field mode, not frame mode. The TW8846's MIPI-CSI layer has no frame
- * or line buffer (datasheet 3.9.1) - it packetises each pixel word as
- * the decoder delivers it - so it physically cannot interleave two
- * fields into a progressive raster. Its FRAME_MODE=1 therefore emits a
- * 576-line picture whose top 288 rows are field 1 and bottom 288 rows
- * are field 2: concatenated, not woven, which displays as two stacked
- * half-height images. Confirmed by capture.
+ * The de-interlacing is done by the TW8846's VP2 2D engine (datasheet
+ * 3.6.5), which has the line buffers to do it properly. That is the right
+ * place for it, and it removes the field-parity problem entirely rather
+ * than working around it:
  *
- * The weave belongs on the i.MX8MP instead, where the ISI has real line
- * buffers and a hardware de-interlace engine (CHNL_IMG_CTRL DEINT).
- * That is the right division of labour: the chip with no buffer sends
- * fields, the chip with buffers combines them. See the deint module
- * parameter in imx8-isi-hw.c.
+ * The chip's MIPI-CSI layer has no line buffer, so in field mode it can
+ * only emit fields sequentially and the SoC has to pair them itself. Doing
+ * that correctly needs to know which field is top and which is bottom, and
+ * nothing in this path could tell us. The parity is on the wire - the
+ * frame-number LSB of each FS packet, slaved to the decoder's real field
+ * signal - but the i.MX8MP CSIS does not expose the received CSI-2 frame
+ * number to software, and its own frame counter restarts at each stream
+ * start so its phase against the incoming fields is arbitrary. Every
+ * parity guess derived from it was a coin flip across repeated captures,
+ * and a wrong guess doubles the one-line vertical error between parities
+ * instead of cancelling it, so it is worse than not correcting at all.
+ * Routing the field flag through per-field embedded data did not work
+ * either: no non-image-data interrupt ever fired and no header survived
+ * in the pixel stream.
  *
- * Geometry reported here is the field, 720x288 at 50Hz. When the ISI
- * weave engine is enabled it consumes two of these and produces one
- * 720x576 frame at 25Hz, which is what the capture node presents.
+ * With progressive input none of that applies. There are no fields to
+ * pair, so no parity to get wrong and no vertical bounce, and each frame
+ * carries 576 real lines rather than 288 interpolated up - vertical detail
+ * that bob de-interlacing on this side could never recover.
  *
- * V4L2_FIELD_NONE rather than V4L2_FIELD_ALTERNATE because
- * imx8-isi-cap.c has no interlace support - it hardcodes
- * V4L2_FIELD_NONE into both the format and the buffer at three sites
- * and overwrites whatever a subdev reports.
- *
- * Link budget is unchanged either way: 720x288x2x50 is 166 Mbps, ~77%
- * duty on the 1-lane 216 Mbps link.
+ * The link is unchanged: 720x576x2x25 is the same 166 Mbps as
+ * 720x288x2x50, ~77% duty on the 1-lane 216 Mbps link, so the devicetree
+ * needs no change.
  */
 #define FIXED_CSI_SOURCE_WIDTH		720
-#define FIXED_CSI_SOURCE_HEIGHT		288
+#define FIXED_CSI_SOURCE_HEIGHT		576
 #define FIXED_CSI_SOURCE_CODE		MEDIA_BUS_FMT_UYVY8_1X16
-#define FIXED_CSI_SOURCE_FPS		50
+#define FIXED_CSI_SOURCE_FPS		25
 
 struct fixed_csi_source {
 	struct v4l2_subdev sd;
