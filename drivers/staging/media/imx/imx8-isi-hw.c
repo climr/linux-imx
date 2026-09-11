@@ -38,11 +38,12 @@ MODULE_PARM_DESC(deint,
 	"ISI de-interlace mode: 0=off, 2=weave odd/even, 3=weave even/odd, "
 	"4/5=blend (unimplemented), 6/7=line double");
 
-static bool deint_src_x2 = true;
+static bool deint_src_x2;
 module_param(deint_src_x2, bool, 0644);
 MODULE_PARM_DESC(deint_src_x2,
-	"While de-interlacing, present the source at double height so "
-	"CHNL_IMG_CFG carries the woven frame size and the scaler stays 1:1");
+	"Present the source at double height in CHNL_IMG_CFG while "
+	"de-interlacing. Off by default: RM 13.4.3.1 has CHNL_IMG_CFG "
+	"describing the image arriving at the channel, which is one field");
 
 #define	ISI_DOWNSCALE_THRESHOLD		0x4000
 
@@ -686,10 +687,10 @@ void mxc_isi_channel_config_loc(struct mxc_isi_dev *mxc_isi,
 
 	/*
 	 * The weave itself supplies the vertical doubling, so the scaler
-	 * has to stay 1:1 however CHNL_IMG_CFG above is programmed. Show
-	 * set_scaling() a source matching the destination; left alone it
-	 * sees a half-height source and computes a 2x vertical upscale
-	 * that fights the weave.
+	 * has to stay 1:1. Hardware bypasses the scaler and CSC outright
+	 * whenever DEINT is non-zero (RM 13.4.3.4.1), but keep the driver's
+	 * own view consistent so it does not compute a 2x vertical upscale
+	 * and mark mxc_isi->scale set.
 	 */
 	scale_src = *src_f;
 	if (deint) {
@@ -704,8 +705,17 @@ void mxc_isi_channel_config_loc(struct mxc_isi_dev *mxc_isi,
 	/* select the source input / src type / virtual channel for mipi*/
 	mxc_isi_channel_source_config(mxc_isi);
 
-	/* line pitch */
+	/*
+	 * Line pitch. Weaving stores one field's lines at double pitch,
+	 * leaving a line of space between them for the other field's lines
+	 * to land in, and the two fields get woven as they are written to
+	 * memory (RM 13.4.3.4). Without the doubled pitch the fields are
+	 * stored contiguously and no weave happens.
+	 */
 	val = dst_f->bytesperline[0];
+	if (mxc_isi->deinterlace == CHNL_IMG_CTRL_DEINT_WEAVE_ODD_EVEN ||
+	    mxc_isi->deinterlace == CHNL_IMG_CTRL_DEINT_WEAVE_EVEN_ODD)
+		val *= 2;
 	writel(val, mxc_isi->regs + CHNL_OUT_BUF_PITCH);
 
 	/* TODO */
