@@ -248,6 +248,31 @@ void mxc_isi_channel_set_outbuf_loc(struct mxc_isi_dev *mxc_isi,
 
 	val = readl(mxc_isi->regs + CHNL_OUT_BUF_CTRL);
 
+	/*
+	 * Weaving fills one frame from two fields, so the two output
+	 * addresses are not a ping-pong between separate buffers here -
+	 * they are both halves of the same frame. With the doubled line
+	 * pitch set in mxc_isi_channel_config_loc(), a field written from
+	 * the base address lands on lines 0, 2, 4... and one written from
+	 * base + one line lands on 1, 3, 5..., which is the weave.
+	 */
+	if (mxc_isi->deinterlace == CHNL_IMG_CTRL_DEINT_WEAVE_ODD_EVEN ||
+	    mxc_isi->deinterlace == CHNL_IMG_CTRL_DEINT_WEAVE_EVEN_ODD) {
+		u32 line = isi_cap->dst_f.bytesperline[0];
+
+		writel(dma_addrs[0], mxc_isi->regs + CHNL_OUT_BUF1_ADDR_Y);
+		writel(dma_addrs[1], mxc_isi->regs + CHNL_OUT_BUF1_ADDR_U);
+		writel(dma_addrs[2], mxc_isi->regs + CHNL_OUT_BUF1_ADDR_V);
+		writel(dma_addrs[0] + line, mxc_isi->regs + CHNL_OUT_BUF2_ADDR_Y);
+		writel(dma_addrs[1] + line, mxc_isi->regs + CHNL_OUT_BUF2_ADDR_U);
+		writel(dma_addrs[2] + line, mxc_isi->regs + CHNL_OUT_BUF2_ADDR_V);
+		val ^= CHNL_OUT_BUF_CTRL_LOAD_BUF1_ADDR_MASK;
+		val ^= CHNL_OUT_BUF_CTRL_LOAD_BUF2_ADDR_MASK;
+		buf->id = MXC_ISI_BUF1;
+		writel(val, mxc_isi->regs + CHNL_OUT_BUF_CTRL);
+		return;
+	}
+
 	if (framecount == 0 || ((is_buf_active(mxc_isi, 2)) && (framecount != 1))) {
 		writel(dma_addrs[0], mxc_isi->regs + CHNL_OUT_BUF1_ADDR_Y);
 		writel(dma_addrs[1], mxc_isi->regs + CHNL_OUT_BUF1_ADDR_U);
