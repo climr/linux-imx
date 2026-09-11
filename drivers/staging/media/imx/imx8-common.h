@@ -34,6 +34,21 @@ struct v4l2_subdev;
  * context: it only reads a register.
  */
 int mxc_mipi_csis_get_frame_counter(struct v4l2_subdev *sd, u32 *counter);
+
+/*
+ * Field parity for an interlaced source, taken from the per-field embedded
+ * data line the source emits (its frame-count LSB is the field flag) and
+ * reported by the CSIS in its ODD/EVEN interrupt bits. This is the only
+ * route to real parity on this SoC: the CSIS does not expose the received
+ * CSI-2 frame number, and its own frame counter restarts at every stream
+ * start so its phase against the incoming fields is arbitrary.
+ *
+ * seq advances once per embedded-data event; a caller can watch it to tell
+ * a live value from a stale latch. Returns -ENODATA if the source has
+ * never emitted embedded data.
+ */
+int mxc_mipi_csis_get_field_parity(struct v4l2_subdev *sd,
+				   unsigned int *parity, u32 *seq);
 #define MXC_MIPI_CSI2_MAX_DEVS	2
 #define MXC_MAX_SENSORS		3
 

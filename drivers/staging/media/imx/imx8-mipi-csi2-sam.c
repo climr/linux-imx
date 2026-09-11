@@ -425,6 +425,18 @@ struct csi_state {
 
 	spinlock_t slock;
 	struct csis_pktbuf pkt_buf;
+
+	/*
+	 * Field parity latched from embedded (non-image) data, for
+	 * interlaced sources. The TW8846 emits a per-field embedded line
+	 * whose frame-count LSB is the field flag (datasheet 3.14), and the
+	 * CSIS reports its parity in INTSRC's ODD/EVEN bits. Those bits are
+	 * only meaningful while embedded data is actually arriving, hence
+	 * the sequence counter: a consumer can tell live parity from a
+	 * stale latch by watching it advance.
+	 */
+	unsigned int field_parity;
+	u32 field_parity_seq;
 	struct mipi_csis_event events[MIPI_CSIS_NUM_EVENTS];
 
 	struct v4l2_async_connection asd;
@@ -706,11 +718,24 @@ static void mipi_csis_enable_interrupts(struct csi_state *state, bool on)
 
 	mipi_csis_clean_irq(state);
 
+	/*
+	 * 0x0FFFFF1F leaves bits 31-28 masked, which are the non-image data
+	 * events - and those are the only place the CSIS reports a frame's
+	 * ODD/EVEN parity. An interlaced source that emits per-field
+	 * embedded data needs them enabled for its field flag to reach
+	 * software at all, so unmask them too.
+	 */
 	val = mipi_csis_read(state, MIPI_CSIS_INTMSK);
 	if (on)
-		val |= 0x0FFFFF1F;
+		val |= 0x0FFFFF1F | MIPI_CSIS_INTMSK_EVEN_BEFORE |
+		       MIPI_CSIS_INTMSK_EVEN_AFTER |
+		       MIPI_CSIS_INTMSK_ODD_BEFORE |
+		       MIPI_CSIS_INTMSK_ODD_AFTER;
 	else
-		val &= ~0x0FFFFF1F;
+		val &= ~(0x0FFFFF1F | MIPI_CSIS_INTMSK_EVEN_BEFORE |
+			 MIPI_CSIS_INTMSK_EVEN_AFTER |
+			 MIPI_CSIS_INTMSK_ODD_BEFORE |
+			 MIPI_CSIS_INTMSK_ODD_AFTER);
 	mipi_csis_write(state, MIPI_CSIS_INTMSK, val);
 }
 
@@ -1555,6 +1580,34 @@ int mxc_mipi_csis_get_frame_counter(struct v4l2_subdev *sd, u32 *counter)
 }
 EXPORT_SYMBOL_GPL(mxc_mipi_csis_get_frame_counter);
 
+/*
+ * Field parity as reported by the source's embedded data, with the
+ * sequence counter so the caller can confirm it is live. Returns -ENODEV
+ * for a non-CSIS subdev and -ENODATA if no embedded data has ever been
+ * seen, which is the case for any source that does not emit it.
+ */
+int mxc_mipi_csis_get_field_parity(struct v4l2_subdev *sd,
+				   unsigned int *parity, u32 *seq)
+{
+	struct csi_state *state;
+
+	if (!sd || !parity || sd->ops != &mipi_csis_subdev_ops)
+		return -ENODEV;
+
+	state = mipi_sd_to_csi_state(sd);
+	if (!state)
+		return -ENODEV;
+
+	if (!state->field_parity_seq)
+		return -ENODATA;
+
+	*parity = state->field_parity;
+	if (seq)
+		*seq = state->field_parity_seq;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxc_mipi_csis_get_field_parity);
+
 static irqreturn_t mipi_csis_irq_handler(int irq, void *dev_id)
 {
 	struct csi_state *state = dev_id;
@@ -1565,6 +1618,18 @@ static irqreturn_t mipi_csis_irq_handler(int irq, void *dev_id)
 	status = mipi_csis_read(state, MIPI_CSIS_INTSRC);
 
 	spin_lock_irqsave(&state->slock, flags);
+
+	/*
+	 * Latch field parity whenever embedded data arrives, independently
+	 * of whether anyone is collecting the payload itself - the ODD/EVEN
+	 * bits carry the frame-number parity and that is all the capture
+	 * driver needs to tag a buffer's field.
+	 */
+	if (status & MIPI_CSIS_INTSRC_NON_IMAGE_DATA) {
+		state->field_parity = (status & MIPI_CSIS_INTSRC_ODD) ? 1 : 0;
+		state->field_parity_seq++;
+	}
+
 	if ((status & MIPI_CSIS_INTSRC_NON_IMAGE_DATA) && pktbuf->data) {
 		u32 offset;
 

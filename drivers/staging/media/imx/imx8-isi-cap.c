@@ -234,17 +234,25 @@ void mxc_isi_cap_frame_write_done(struct mxc_isi_dev *mxc_isi)
 			u32 fc;
 
 			/*
-			 * Prefer the CSIS received-picture counter: it counts
-			 * one picture per field and so keeps a fixed phase
-			 * relationship with the incoming fields. frame_count
-			 * restarts at zero on every streamon, which leaves
-			 * parity a coin flip against whichever field the
-			 * transmitter was part-way through at the time - and
-			 * getting it backwards is worse than not correcting at
-			 * all, doubling the vertical error instead of
-			 * cancelling it.
+			 * Real parity comes from the source's per-field
+			 * embedded data, via the CSIS ODD/EVEN interrupt bits.
+			 * Nothing else on this SoC carries it: the CSIS does
+			 * not expose the received CSI-2 frame number, and its
+			 * own frame counter restarts at each stream start, so
+			 * its phase against the incoming fields is arbitrary -
+			 * which made every counter-derived guess a coin flip,
+			 * and a wrong guess doubles the one-line error rather
+			 * than cancelling it.
+			 *
+			 * Falling back to frame_count keeps the previous
+			 * behaviour for sources with no embedded data. It is
+			 * only as good as a coin flip on the phase, so
+			 * field_bottom_first remains writable to correct it.
 			 */
-			if (!mxc_mipi_csis_get_frame_counter(isi_cap->remote_sd, &fc))
+			if (!mxc_mipi_csis_get_field_parity(isi_cap->remote_sd,
+							    &parity, NULL))
+				; /* parity set from embedded data */
+			else if (!mxc_mipi_csis_get_frame_counter(isi_cap->remote_sd, &fc))
 				parity = fc & 1;
 			else
 				parity = isi_cap->frame_count & 1;
