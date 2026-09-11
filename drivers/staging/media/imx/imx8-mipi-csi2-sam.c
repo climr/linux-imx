@@ -19,6 +19,7 @@
  */
 
 #include <linux/clk.h>
+#include "imx8-common.h"
 #include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/interrupt.h>
@@ -1531,6 +1532,28 @@ static struct v4l2_subdev_ops mipi_csis_subdev_ops = {
 	.video = &mipi_csis_video_ops,
 	.pad = &mipi_csis_pad_ops,
 };
+
+/*
+ * Exported for the ISI capture driver, which needs a field-phase reference
+ * for interlaced sources and has no counter of its own. Not routed through
+ * csis_priv_ioctl() because that takes a runtime-PM reference and so cannot
+ * be called from the ISI's frame-done interrupt.
+ */
+int mxc_mipi_csis_get_frame_counter(struct v4l2_subdev *sd, u32 *counter)
+{
+	struct csi_state *state;
+
+	if (!sd || !counter || sd->ops != &mipi_csis_subdev_ops)
+		return -ENODEV;
+
+	state = mipi_sd_to_csi_state(sd);
+	if (!state)
+		return -ENODEV;
+
+	*counter = mipi_csis_read(state, MIPI_CSIS_FRAME_COUNTER_CH0);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxc_mipi_csis_get_frame_counter);
 
 static irqreturn_t mipi_csis_irq_handler(int irq, void *dev_id)
 {

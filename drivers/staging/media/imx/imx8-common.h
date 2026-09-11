@@ -18,6 +18,22 @@
 #define HDMI_RX_OF_NODE_NAME	"hdmi_rx"
 
 #define MXC_ISI_MAX_DEVS	8
+
+struct v4l2_subdev;
+
+/*
+ * Read the CSIS received-picture counter.
+ *
+ * For a field-sequential interlaced source the CSIS counts one picture per
+ * field, so the counter's LSB is a stable field-phase reference - unlike a
+ * count kept by the capture driver, which starts from zero whenever
+ * streaming begins and therefore has no fixed relationship to which field
+ * the transmitter happened to be sending at that moment.
+ *
+ * Returns -ENODEV if sd is not a CSIS subdev. Safe to call from interrupt
+ * context: it only reads a register.
+ */
+int mxc_mipi_csis_get_frame_counter(struct v4l2_subdev *sd, u32 *counter);
 #define MXC_MIPI_CSI2_MAX_DEVS	2
 #define MXC_MAX_SENSORS		3
 

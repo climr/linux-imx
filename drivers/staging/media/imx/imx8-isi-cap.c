@@ -229,9 +229,29 @@ void mxc_isi_cap_frame_write_done(struct mxc_isi_dev *mxc_isi)
 		 * when userspace queues it - queue order says nothing about
 		 * which field the hardware will put in it.
 		 */
-		if (field_alternate)
-			buf->v4l2_buf.field = ((isi_cap->frame_count & 1) ^ field_bottom_first)
+		if (field_alternate) {
+			unsigned int parity;
+			u32 fc;
+
+			/*
+			 * Prefer the CSIS received-picture counter: it counts
+			 * one picture per field and so keeps a fixed phase
+			 * relationship with the incoming fields. frame_count
+			 * restarts at zero on every streamon, which leaves
+			 * parity a coin flip against whichever field the
+			 * transmitter was part-way through at the time - and
+			 * getting it backwards is worse than not correcting at
+			 * all, doubling the vertical error instead of
+			 * cancelling it.
+			 */
+			if (!mxc_mipi_csis_get_frame_counter(isi_cap->remote_sd, &fc))
+				parity = fc & 1;
+			else
+				parity = isi_cap->frame_count & 1;
+
+			buf->v4l2_buf.field = (parity ^ field_bottom_first)
 					    ? V4L2_FIELD_BOTTOM : V4L2_FIELD_TOP;
+		}
 		vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_DONE);
 	}
 
@@ -1149,6 +1169,7 @@ static int mxc_isi_cap_streamon(struct file *file, void *priv,
 
 	if (!isi_cap->is_streaming[isi_cap->id]) {
 		src_sd = mxc_get_remote_subdev(&isi_cap->sd, __func__);
+		isi_cap->remote_sd = src_sd;
 		ret = (!src_sd) ? -EINVAL : v4l2_subdev_call(src_sd, core, s_power, 1);
 		if (ret) {
 			v4l2_err(&isi_cap->sd, "Call subdev s_power fail!\n");

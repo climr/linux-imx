@@ -326,6 +326,13 @@ struct mxc_isi_cap_dev {
 
 	u32 frame_count;
 	u32 id;
+	/*
+	 * Remote subdev, resolved once at stream start. Cached because the
+	 * field-parity read happens in the frame-done interrupt, where
+	 * walking the media graph per frame would be wasteful and the
+	 * usual lookup helper logs on failure - at 50Hz.
+	 */
+	struct v4l2_subdev *remote_sd;
 	u32 is_streaming[MXC_ISI_MAX_DEVS];
 	bool runtime_suspend;
 	bool is_link_setup;
