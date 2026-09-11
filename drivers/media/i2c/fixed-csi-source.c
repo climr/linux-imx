@@ -27,23 +27,41 @@
 #include <media/v4l2-subdev.h>
 
 /*
- * SD PAL CVBS decoded by the TW8846 and sent unscaled, in field mode
- * (TW8846 datasheet 3.12.5): each 720x288 field is transmitted as its
- * own picture with its own FS/FE short packets, 50 of them per second.
+ * SD PAL CVBS decoded by the TW8846 and sent unscaled, in frame mode
+ * (TW8846 datasheet 3.12.5): the chip weaves the odd and even fields
+ * into a single 720x576 output frame, 25 of them per second, each
+ * transmitted as one picture with its own FS/FE short packets.
  *
- * Field mode is reported here as plain progressive 720x288 rather than
- * V4L2_FIELD_ALTERNATE on purpose. imx8-isi-cap.c has no interlace
- * support - it hardcodes V4L2_FIELD_NONE into both the format and the
- * buffer (three sites) and overwrites whatever a subdev reports - and
- * imx8-mipi-csi2-sam.c defines MIPI_CSIS_CMN_CTRL_INTER_MODE but never
- * writes it. Since each field already arrives as a self-contained
- * picture, treating fields as independent frames is what the hardware
- * does anyway; pair them in userspace if deinterlacing is wanted.
+ * Frame mode rather than field mode because nothing downstream can
+ * weave. No GStreamer element combines two half-height 288-line
+ * buffers into one 576-line frame - deinterlace needs full-height
+ * interlaced input and interlace preserves height rather than
+ * doubling it - so real 576-line output is only reachable if the
+ * weave happens in the TW8846. Doing it there also settles field
+ * parity in hardware, which the chip knows and this driver does not:
+ * 3.12.5 can embed the frame-number LSB in FS/FE to convey polarity,
+ * but nothing here surfaces it. Measured empirically on the field-mode
+ * capture, this source is bottom-field-first.
+ *
+ * Still reported as V4L2_FIELD_NONE even though the content is
+ * interlaced. imx8-isi-cap.c has no interlace support at all - it
+ * hardcodes V4L2_FIELD_NONE into both the format and the buffer at
+ * three sites and overwrites whatever a subdev reports - so declaring
+ * anything else here would be discarded. Userspace re-declares the
+ * interlacing downstream instead; in GStreamer that is capssetter
+ * with interlace-mode=interleaved,field-order=bottom-field-first
+ * ahead of deinterlace. Weaving is lossless and the fields separate
+ * perfectly again on alternating lines, so nothing is given up by
+ * letting the TW8846 weave and deinterlacing on the SoC.
+ *
+ * Bandwidth is unchanged from field mode: 720x576x2x25 is the same
+ * 166 Mbps as 720x288x2x50, ~77% duty on the 1-lane 216 Mbps link,
+ * so the devicetree needs no change.
  */
 #define FIXED_CSI_SOURCE_WIDTH		720
-#define FIXED_CSI_SOURCE_HEIGHT		288
+#define FIXED_CSI_SOURCE_HEIGHT		576
 #define FIXED_CSI_SOURCE_CODE		MEDIA_BUS_FMT_UYVY8_1X16
-#define FIXED_CSI_SOURCE_FPS		50
+#define FIXED_CSI_SOURCE_FPS		25
 
 struct fixed_csi_source {
 	struct v4l2_subdev sd;
