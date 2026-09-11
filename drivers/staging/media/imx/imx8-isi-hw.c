@@ -14,6 +14,36 @@ MODULE_DESCRIPTION("IMX8 Image Sensor Interface Hardware driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
 
+/*
+ * Hardware de-interlacing.
+ *
+ * The ISI has a weave engine (CHNL_IMG_CTRL DEINT field) that combines
+ * two consecutive half-height input fields into one full-height output
+ * frame. For an interlaced SD source this is the right place to do it:
+ * a MIPI transmitter with no line buffer can only emit fields
+ * sequentially, while the ISI has real line buffers.
+ *
+ * The engine was unreachable before this. mxc_isi->deinterlace was
+ * never assigned anywhere in the tree and mxc_isi_channel_set_deinterlace()
+ * had no callers, so the DEINT field stayed 0 and fields passed through
+ * untouched.
+ *
+ * Exposed as module parameters rather than hardcoded because the
+ * geometry semantics are not documented in this driver and the path had
+ * never been exercised - see deint_src_x2.
+ */
+static unsigned int deint;
+module_param(deint, uint, 0644);
+MODULE_PARM_DESC(deint,
+	"ISI de-interlace mode: 0=off, 2=weave odd/even, 3=weave even/odd, "
+	"4/5=blend (unimplemented), 6/7=line double");
+
+static bool deint_src_x2 = true;
+module_param(deint_src_x2, bool, 0644);
+MODULE_PARM_DESC(deint_src_x2,
+	"While de-interlacing, present the source at double height so "
+	"CHNL_IMG_CFG carries the woven frame size and the scaler stays 1:1");
+
 #define	ISI_DOWNSCALE_THRESHOLD		0x4000
 
 #ifdef DEBUG
@@ -434,6 +464,18 @@ void mxc_isi_channel_deinterlace_init(struct mxc_isi_dev *mxc_isi)
 	/* Config for Blending deinterlace */
 }
 
+/*
+ * The de-interlace mode is needed by the capture driver's geometry
+ * checks before any channel has been configured, so expose the module
+ * parameter rather than mxc_isi->deinterlace, which is only assigned
+ * once mxc_isi_channel_config_loc() runs.
+ */
+unsigned int mxc_isi_deinterlace_mode(void)
+{
+	return deint;
+}
+EXPORT_SYMBOL_GPL(mxc_isi_deinterlace_mode);
+
 void mxc_isi_channel_set_deinterlace(struct mxc_isi_dev *mxc_isi)
 {
 	/* de-interlacing method
@@ -614,7 +656,24 @@ void mxc_isi_channel_config_loc(struct mxc_isi_dev *mxc_isi,
 				struct mxc_isi_frame *src_f,
 				struct mxc_isi_frame *dst_f)
 {
+	struct mxc_isi_frame woven;
 	u32 val;
+
+	/*
+	 * With the weave engine on, two half-height fields become one
+	 * full-height frame. Present the doubled geometry to everything
+	 * below so CHNL_IMG_CFG describes the woven frame and
+	 * mxc_isi_channel_set_scaling() sees source and destination
+	 * matching - left alone it computes a 2x vertical upscale that
+	 * fights the weave.
+	 */
+	mxc_isi->deinterlace = deint;
+	if (deint && deint_src_x2) {
+		woven = *src_f;
+		woven.o_height *= 2;
+		woven.height *= 2;
+		src_f = &woven;
+	}
 
 	/* images having higher than 2048 horizontal resolution */
 	chain_buf(mxc_isi, src_f);
@@ -648,11 +707,23 @@ void mxc_isi_channel_config_loc(struct mxc_isi_dev *mxc_isi,
 
 	mxc_isi_channel_set_panic_threshold(mxc_isi);
 
+	/*
+	 * After the other CHNL_IMG_CTRL writers above; they are all
+	 * read-modify-write on their own bitfields, but keeping DEINT last
+	 * makes the ordering obvious.
+	 */
+	mxc_isi_channel_set_deinterlace(mxc_isi);
+
 	val = readl(mxc_isi->regs + CHNL_CTRL);
 	val &= ~CHNL_CTRL_CHNL_BYPASS_MASK;
 
-	/*  Bypass channel */
-	if (!mxc_isi->cscen && !mxc_isi->scale)
+	/*
+	 * Bypass channel. Must not be taken while de-interlacing: bypass
+	 * routes around the channel processing the weave engine lives in,
+	 * and a straight YUV422 passthrough has neither CSC nor scaling to
+	 * keep it out of bypass on its own.
+	 */
+	if (!mxc_isi->cscen && !mxc_isi->scale && !mxc_isi->deinterlace)
 		val |= (CHNL_CTRL_CHNL_BYPASS_ENABLE << CHNL_CTRL_CHNL_BYPASS_OFFSET);
 
 	writel(val, mxc_isi->regs + CHNL_CTRL);

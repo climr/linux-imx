@@ -950,6 +950,7 @@ static int mxc_isi_source_fmt_init(struct mxc_isi_cap_dev *isi_cap)
 	struct v4l2_subdev_format src_fmt;
 	struct media_pad *source_pad;
 	struct v4l2_subdev *src_sd;
+	unsigned int vmul;
 	int ret;
 
 	source_pad = mxc_isi_get_remote_source_pad(&isi_cap->sd);
@@ -992,11 +993,18 @@ static int mxc_isi_source_fmt_init(struct mxc_isi_cap_dev *isi_cap)
 
 	set_frame_bounds(src_f, src_fmt.format.width, src_fmt.format.height);
 
-	if (dst_f->width > src_f->width || dst_f->height > src_f->height) {
+	/*
+	 * While the ISI weave engine is on, two half-height input fields
+	 * become one full-height output frame, so a destination twice the
+	 * source height is the expected case rather than an upscale.
+	 */
+	vmul = mxc_isi_deinterlace_mode() ? 2 : 1;
+
+	if (dst_f->width > src_f->width || dst_f->height > src_f->height * vmul) {
 		dev_err(&isi_cap->pdev->dev,
-			"%s: src:(%d,%d), dst:(%d,%d) Not support upscale\n",
+			"%s: src:(%d,%d)x%d, dst:(%d,%d) Not support upscale\n",
 			__func__,
-			src_f->width, src_f->height,
+			src_f->width, src_f->height, vmul,
 			dst_f->width, dst_f->height);
 		return -EINVAL;
 	}

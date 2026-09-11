@@ -27,41 +27,40 @@
 #include <media/v4l2-subdev.h>
 
 /*
- * SD PAL CVBS decoded by the TW8846 and sent unscaled, in frame mode
- * (TW8846 datasheet 3.12.5): the chip weaves the odd and even fields
- * into a single 720x576 output frame, 25 of them per second, each
- * transmitted as one picture with its own FS/FE short packets.
+ * SD PAL CVBS decoded by the TW8846 and sent unscaled, in field mode:
+ * each 720x288 field is transmitted as its own picture with its own
+ * FS/FE short packets, 50 of them per second.
  *
- * Frame mode rather than field mode because nothing downstream can
- * weave. No GStreamer element combines two half-height 288-line
- * buffers into one 576-line frame - deinterlace needs full-height
- * interlaced input and interlace preserves height rather than
- * doubling it - so real 576-line output is only reachable if the
- * weave happens in the TW8846. Doing it there also settles field
- * parity in hardware, which the chip knows and this driver does not:
- * 3.12.5 can embed the frame-number LSB in FS/FE to convey polarity,
- * but nothing here surfaces it. Measured empirically on the field-mode
- * capture, this source is bottom-field-first.
+ * Field mode, not frame mode. The TW8846's MIPI-CSI layer has no frame
+ * or line buffer (datasheet 3.9.1) - it packetises each pixel word as
+ * the decoder delivers it - so it physically cannot interleave two
+ * fields into a progressive raster. Its FRAME_MODE=1 therefore emits a
+ * 576-line picture whose top 288 rows are field 1 and bottom 288 rows
+ * are field 2: concatenated, not woven, which displays as two stacked
+ * half-height images. Confirmed by capture.
  *
- * Still reported as V4L2_FIELD_NONE even though the content is
- * interlaced. imx8-isi-cap.c has no interlace support at all - it
- * hardcodes V4L2_FIELD_NONE into both the format and the buffer at
- * three sites and overwrites whatever a subdev reports - so declaring
- * anything else here would be discarded. Userspace re-declares the
- * interlacing downstream instead; in GStreamer that is capssetter
- * with interlace-mode=interleaved,field-order=bottom-field-first
- * ahead of deinterlace. Weaving is lossless and the fields separate
- * perfectly again on alternating lines, so nothing is given up by
- * letting the TW8846 weave and deinterlacing on the SoC.
+ * The weave belongs on the i.MX8MP instead, where the ISI has real line
+ * buffers and a hardware de-interlace engine (CHNL_IMG_CTRL DEINT).
+ * That is the right division of labour: the chip with no buffer sends
+ * fields, the chip with buffers combines them. See the deint module
+ * parameter in imx8-isi-hw.c.
  *
- * Bandwidth is unchanged from field mode: 720x576x2x25 is the same
- * 166 Mbps as 720x288x2x50, ~77% duty on the 1-lane 216 Mbps link,
- * so the devicetree needs no change.
+ * Geometry reported here is the field, 720x288 at 50Hz. When the ISI
+ * weave engine is enabled it consumes two of these and produces one
+ * 720x576 frame at 25Hz, which is what the capture node presents.
+ *
+ * V4L2_FIELD_NONE rather than V4L2_FIELD_ALTERNATE because
+ * imx8-isi-cap.c has no interlace support - it hardcodes
+ * V4L2_FIELD_NONE into both the format and the buffer at three sites
+ * and overwrites whatever a subdev reports.
+ *
+ * Link budget is unchanged either way: 720x288x2x50 is 166 Mbps, ~77%
+ * duty on the 1-lane 216 Mbps link.
  */
 #define FIXED_CSI_SOURCE_WIDTH		720
-#define FIXED_CSI_SOURCE_HEIGHT		576
+#define FIXED_CSI_SOURCE_HEIGHT		288
 #define FIXED_CSI_SOURCE_CODE		MEDIA_BUS_FMT_UYVY8_1X16
-#define FIXED_CSI_SOURCE_FPS		25
+#define FIXED_CSI_SOURCE_FPS		50
 
 struct fixed_csi_source {
 	struct v4l2_subdev sd;

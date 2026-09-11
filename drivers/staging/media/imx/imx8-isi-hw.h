@@ -447,6 +447,7 @@ void mxc_isi_channel_enable_loc(struct mxc_isi_dev *mxc_isi, bool m2m_enabled);
 void mxc_isi_channel_disable_loc(struct mxc_isi_dev *mxc_isi);
 void mxc_isi_cap_frame_write_done(struct mxc_isi_dev *mxc_isi);
 void mxc_isi_channel_set_deinterlace(struct mxc_isi_dev *mxc_isi);
+unsigned int mxc_isi_deinterlace_mode(void);
 void mxc_isi_channel_sw_reset(struct mxc_isi_dev *mxc_isi);
 void mxc_isi_channel_hw_reset(struct mxc_isi_dev *mxc_isi);
 void mxc_isi_channel_source_config(struct mxc_isi_dev *mxc_isi);
