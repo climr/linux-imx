@@ -39,6 +39,37 @@ static int mxc_isi_cap_streamoff(struct file *file, void *priv,
 /*
  * Pixel link input format
  */
+/*
+ * Report the stream as alternating fields rather than progressive frames.
+ *
+ * An interlaced SD source delivers one field per picture, and each field
+ * carries a different set of lines of the full raster - the top field the
+ * even lines, the bottom field the odd ones. A consumer that scales every
+ * field to full height identically has no way to know that and places both
+ * parities on the same grid, which puts one of them a line out and shows up
+ * as a one-line vertical bounce at the field rate.
+ *
+ * V4L2_FIELD_ALTERNATE is how that is communicated: the format height is
+ * the height of a field, each buffer carries one field, and the buffer's
+ * field member says which parity it is. GStreamer's v4l2src turns that into
+ * interlace-mode=alternate with per-buffer field flags, which lets
+ * deinterlace do a parity-correct bob.
+ *
+ * Off by default: it changes the meaning of the format for every consumer
+ * of this driver, and only an interlaced source should turn it on.
+ */
+static bool field_alternate;
+module_param(field_alternate, bool, 0644);
+MODULE_PARM_DESC(field_alternate,
+	"Report V4L2_FIELD_ALTERNATE and tag each buffer's field parity, "
+	"for sources that deliver one interlaced field per picture");
+
+static bool field_bottom_first = true;
+module_param(field_bottom_first, bool, 0644);
+MODULE_PARM_DESC(field_bottom_first,
+	"With field_alternate, the first field of a frame is the bottom "
+	"field. True suits PAL; clear it for a top-field-first source");
+
 struct mxc_isi_fmt mxc_isi_src_formats[] = {
 	{
 		.name		= "RGB32",
@@ -193,6 +224,14 @@ void mxc_isi_cap_frame_write_done(struct mxc_isi_dev *mxc_isi)
 		vb2 = &buf->v4l2_buf.vb2_buf;
 		list_del_init(&buf->list);
 		buf->v4l2_buf.vb2_buf.timestamp = ktime_get_ns();
+		/*
+		 * Parity belongs on the completed frame, not on the buffer
+		 * when userspace queues it - queue order says nothing about
+		 * which field the hardware will put in it.
+		 */
+		if (field_alternate)
+			buf->v4l2_buf.field = ((isi_cap->frame_count & 1) ^ field_bottom_first)
+					    ? V4L2_FIELD_BOTTOM : V4L2_FIELD_TOP;
 		vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_DONE);
 	}
 
@@ -846,7 +885,7 @@ static int mxc_isi_cap_g_fmt_mplane(struct file *file, void *fh,
 
 	pix->width = dst_f->o_width;
 	pix->height = dst_f->o_height;
-	pix->field = V4L2_FIELD_NONE;
+	pix->field = field_alternate ? V4L2_FIELD_ALTERNATE : V4L2_FIELD_NONE;
 	pix->pixelformat = dst_f->fmt->fourcc;
 	pix->colorspace = V4L2_COLORSPACE_SRGB;
 	pix->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(pix->colorspace);
@@ -894,7 +933,7 @@ mxc_isi_cap_fmt_try(struct mxc_isi_cap_dev *isi_cap,
 
 	pix->num_planes = fmt->memplanes;
 	pix->pixelformat = fmt->fourcc;
-	pix->field = V4L2_FIELD_NONE;
+	pix->field = field_alternate ? V4L2_FIELD_ALTERNATE : V4L2_FIELD_NONE;
 	pix->colorspace = V4L2_COLORSPACE_SRGB;
 	pix->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(pix->colorspace);
 	pix->quantization = V4L2_QUANTIZATION_FULL_RANGE;
